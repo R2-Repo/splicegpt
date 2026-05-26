@@ -52,7 +52,7 @@ export default function App() {
         </label>
         <button type="button" className="button" onClick={() => importText(sampleCsv)}>Load sample</button>
         <button type="button" className="button" onClick={() => setOverrides(cloneOverrides(emptyOverrides))}>Reset edits</button>
-        <span className="status-pill">Bentley pair-merge parser</span>
+        <span className="status-pill">Engine refactor v1</span>
         <span className="top-import-bar__meta">{model.cables.length} cables · {model.connections.length} splices · {diagnosticCount} diagnostics</span>
       </div>
 
