@@ -10,6 +10,7 @@ import {
   type NodeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { fiberColorHex } from "../engine/colors";
 import { sideForCanvasX } from "../engine/layout";
 import type { DiagramOverrides, FiberAnchor, LayoutPlan, Point, RoutedStrand, RoutePlan } from "../engine/types";
 import { CableNode, type CableFlowNode } from "./CableNode";
@@ -21,11 +22,16 @@ type Props = {
   onOverridesChange: (next: DiagramOverrides) => void;
 };
 
+type RouteLegs = {
+  sourceLeg: Point[];
+  targetLeg: Point[];
+};
+
 const nodeTypes = { cable: CableNode } as NodeTypes;
 const LANE_SPACING = 24;
 const SAME_SIDE_INSET = 150;
 const MIN_HANDLE_CLEARANCE = 60;
-const CORNER_RADIUS = 18;
+const CORNER_RADIUS = 4;
 
 function fmt(value: number): string {
   return value.toFixed(1);
@@ -94,6 +100,20 @@ function fusionPoint(route: RoutedStrand): Point {
     return { x: (route.source.x + route.target.x) / 2, y: (route.source.y + route.target.y) / 2 };
   }
   return { x: route.midX, y: (route.source.y + route.target.y) / 2 };
+}
+
+function routeLegs(route: RoutedStrand, dot: Point): RouteLegs {
+  if (route.points.length <= 2) {
+    return {
+      sourceLeg: [route.source, dot],
+      targetLeg: [dot, route.target],
+    };
+  }
+
+  return {
+    sourceLeg: [route.source, { x: route.midX, y: route.source.y }, dot],
+    targetLeg: [dot, { x: route.midX, y: route.target.y }, route.target],
+  };
 }
 
 function buildFlowNodes(layout: LayoutPlan): CableFlowNode[] {
@@ -256,12 +276,24 @@ function SpliceCanvasInner({ layout, routes, overrides, onOverridesChange }: Pro
             <line x1={liveLayout.centerX} x2={liveLayout.centerX} y1="28" y2={liveLayout.height - 28} stroke="#cbd5e1" strokeDasharray="9 10" />
             <text x={liveLayout.centerX} y="38" textAnchor="middle" className="center-label">splice routing center</text>
             {liveRoutes.map((route) => {
-              const d = smoothRoutePath(route.points);
+              const hitD = smoothRoutePath(route.points);
               const dot = fusionPoint(route);
+              const legs = routeLegs(route, dot);
+              const sourceD = smoothRoutePath(legs.sourceLeg);
+              const targetD = smoothRoutePath(legs.targetLeg);
+              const anchors = liveLayout.anchorsByConnection[route.connectionId];
+              const sourceColor = anchors ? fiberColorHex[anchors.source.fiberColor] : route.color;
+              const targetColor = anchors ? fiberColorHex[anchors.target.fiberColor] : route.color;
+              const sourceStroke = route.protected ? "#64748b" : sourceColor;
+              const targetStroke = route.protected ? "#64748b" : targetColor;
+              const strokeWidth = route.protected ? 3.8 : 3;
+              const dash = route.protected ? "8 6" : undefined;
+
               return (
                 <g key={route.id} className="route-group" onClick={() => toggleProtected(route.connectionId)}>
-                  <path d={d} fill="none" stroke="#f8fafc" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d={d} fill="none" stroke={route.protected ? "#64748b" : route.color} strokeWidth={route.protected ? 3.8 : 3} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={route.protected ? "8 6" : undefined} />
+                  <path d={hitD} fill="none" stroke="#f8fafc" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d={sourceD} fill="none" stroke={sourceStroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={dash} />
+                  <path d={targetD} fill="none" stroke={targetStroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={dash} />
                   <circle cx={dot.x} cy={dot.y} r="4.5" fill="#111827" stroke="#ffffff" strokeWidth="1.5" />
                   <title>{`${route.connectionId}${route.circuitName ? ` - ${route.circuitName}` : ""}. Click to toggle protect/existing.`}</title>
                 </g>
