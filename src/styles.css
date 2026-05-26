@@ -69,17 +69,39 @@ button, input { font: inherit; }
 
 .canvas-shell {
   flex: 1;
-  overflow: auto;
+  height: calc(100vh - 54px);
   background: #e2e8f0;
 }
 
-.splice-svg {
-  display: block;
-  user-select: none;
-  cursor: default;
-  min-width: 100%;
-  min-height: calc(100vh - 54px);
+.react-flow {
+  background: #f8fafc;
 }
+
+.react-flow__node-cable {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+.react-flow__node.selected .cable-node-svg {
+  filter: drop-shadow(0 0 0.45rem rgba(37, 99, 235, 0.4));
+}
+
+.route-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.route-group {
+  pointer-events: visibleStroke;
+  cursor: pointer;
+}
+
+.route-group:hover path:nth-child(2) { stroke-width: 5; }
 
 .center-label {
   font-size: 12px;
@@ -87,11 +109,13 @@ button, input { font: inherit; }
   font-weight: 800;
 }
 
-.route-group { cursor: pointer; }
-.route-group:hover path:nth-child(2) { stroke-width: 5; }
+.cable-node-svg {
+  display: block;
+  overflow: visible;
+  cursor: grab;
+}
 
-.cable-unit { cursor: grab; }
-.cable-unit:active { cursor: grabbing; }
+.cable-node-svg:active { cursor: grabbing; }
 
 .cable-name {
   fill: #0f172a;

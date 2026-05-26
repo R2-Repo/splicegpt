@@ -1,19 +1,26 @@
-# SpliceGPT SVG Engine Prototype
+# SpliceGPT React Flow Prototype
 
 A front-end-only React prototype for deterministic fiber splice-detail creation.
 
 ## Current prototype direction
 
-This revision intentionally keeps the UI simple:
+This revision uses a hybrid canvas:
 
-- top import bar only
-- SVG splice canvas
-- small cable sheath/cylinder visuals
-- buffer tube fan-out lines
-- fiber strand fan-out lines
-- deterministic full-diagram reroute after every cable drag
+- React Flow provides pan, zoom, controls, selection, and cable node dragging.
+- The custom splice engine still owns the canonical model, layout, and route plan.
+- A custom SVG viewport overlay renders fiber splice routes from the route plan.
+- Custom React Flow cable nodes render small sheath/cylinder visuals, buffer tubes, and fiber fan-out stubs.
 
-The goal is to prove the splice engine before wrapping it in a heavier React Flow editor.
+## Important architecture rule
+
+React Flow is the interaction shell. It is not the source of truth for fiber routing.
+
+```txt
+CSV/model + manual overrides
+  -> layout engine
+  -> routing engine
+  -> React Flow cable nodes + SVG route overlay
+```
 
 ## Run locally
 

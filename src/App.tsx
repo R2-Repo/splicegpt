@@ -52,7 +52,7 @@ export default function App() {
         </label>
         <button type="button" className="button" onClick={() => importText(sampleCsv)}>Load sample</button>
         <button type="button" className="button" onClick={() => setOverrides(cloneOverrides(emptyOverrides))}>Reset edits</button>
-        <span className="status-pill">SVG engine v2</span>
+        <span className="status-pill">React Flow shell + SVG routes</span>
         <span className="top-import-bar__meta">{model.cables.length} cables · {model.connections.length} splices · {diagnosticCount} diagnostics</span>
       </div>
 
