@@ -5,11 +5,11 @@ export const FIBER_ROW_PITCH = 24;
 export const TUBE_GROUP_GAP = 8;
 export const SAME_SIDE_CABLE_GAP = 32;
 
-const CANVAS_MIN_WIDTH = 1240;
+const CANVAS_MIN_WIDTH = 1320;
 const TOP_PADDING = 64;
 const SIDE_X = 54;
-const CABLE_WIDTH = 172;
-const HEADER_HEIGHT = 34;
+const CABLE_WIDTH = 264;
+const HEADER_HEIGHT = 26;
 const BOTTOM_PADDING = 86;
 
 function compareFiber(a: FiberEndpoint, b: FiberEndpoint): number {
@@ -18,7 +18,7 @@ function compareFiber(a: FiberEndpoint, b: FiberEndpoint): number {
 
 function cableHeight(fibers: FiberEndpoint[]): number {
   const tubeCount = new Set(fibers.map((fiber) => fiber.tubeColor)).size || 1;
-  return HEADER_HEIGHT + fibers.length * FIBER_ROW_PITCH + Math.max(0, tubeCount - 1) * TUBE_GROUP_GAP + 24;
+  return HEADER_HEIGHT + fibers.length * FIBER_ROW_PITCH + Math.max(0, tubeCount - 1) * TUBE_GROUP_GAP + 30;
 }
 
 function sideFromOverrideOrHint(modelSide: Side, override?: { side?: Side; position?: Point }): Side {
@@ -91,7 +91,7 @@ function placeSide(model: SpliceModel, side: Side, overrides: DiagramOverrides, 
 
 export function createLayoutPlan(model: SpliceModel, overrides: DiagramOverrides): LayoutPlan {
   const maxCableCount = Math.max(sortedCableIdsForSide(model, "left", overrides).length, sortedCableIdsForSide(model, "right", overrides).length, 1);
-  const canvasWidth = Math.max(CANVAS_MIN_WIDTH, 900 + maxCableCount * 52);
+  const canvasWidth = Math.max(CANVAS_MIN_WIDTH, 1040 + maxCableCount * 52);
   const cables = [...placeSide(model, "left", overrides, canvasWidth), ...placeSide(model, "right", overrides, canvasWidth)];
   const anchorsByConnection: LayoutPlan["anchorsByConnection"] = {};
   for (const conn of model.connections) {
