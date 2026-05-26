@@ -90,13 +90,7 @@ export type LayoutPlan = {
   height: number;
   centerX: number;
   cables: CableLayout[];
-  anchorsByConnection: Record<
-    string,
-    {
-      source: FiberAnchor;
-      target: FiberAnchor;
-    }
-  >;
+  anchorsByConnection: Record<string, { source: FiberAnchor; target: FiberAnchor }>;
 };
 
 export type Segment = {

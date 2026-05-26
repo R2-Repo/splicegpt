@@ -41,29 +41,12 @@ function parseNumber(raw: string, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function endpointFromCells(args: {
-  role: "source" | "target";
-  side: Side;
-  cableName: string;
-  tubeColor: string;
-  fiberNumber: string;
-  fiberColor: string;
-  device?: string;
-  fallbackFiberNumber: number;
-}): FiberEndpoint | null {
+function endpointFromCells(args: { role: "source" | "target"; side: Side; cableName: string; tubeColor: string; fiberNumber: string; fiberColor: string; device?: string; fallbackFiberNumber: number }): FiberEndpoint | null {
   const cableName = args.cableName.trim();
   if (!cableName) return null;
   const fiberColor = normalizeFiberColor(args.fiberColor) as FiberColor | null;
   if (!fiberColor) return null;
-  return {
-    role: args.role,
-    cableName,
-    cableId: cableId(args.side, cableName),
-    tubeColor: normalizeTubeColor(args.tubeColor),
-    fiberNumber: parseNumber(args.fiberNumber, args.fallbackFiberNumber),
-    fiberColor,
-    device: args.device?.trim() || undefined,
-  };
+  return { role: args.role, cableName, cableId: cableId(args.side, cableName), tubeColor: normalizeTubeColor(args.tubeColor), fiberNumber: parseNumber(args.fiberNumber, args.fallbackFiberNumber), fiberColor, device: args.device?.trim() || undefined };
 }
 
 function buildModel(connections: SpliceConnection[], warnings: string[], title = "Imported splice detail"): SpliceModel {
@@ -71,47 +54,22 @@ function buildModel(connections: SpliceConnection[], warnings: string[], title =
   for (const conn of connections) {
     for (const [sideHint, ep] of [["left", conn.source], ["right", conn.target]] as const) {
       const existing = cableMap.get(ep.cableId);
-      if (existing) {
-        existing.fibers.push(ep);
-      } else {
-        cableMap.set(ep.cableId, {
-          id: ep.cableId,
-          name: ep.cableName,
-          sideHint,
-          fibers: [ep],
-        });
-      }
+      if (existing) existing.fibers.push(ep);
+      else cableMap.set(ep.cableId, { id: ep.cableId, name: ep.cableName, sideHint, fibers: [ep] });
     }
   }
-
-  const cables = [...cableMap.values()].sort((a, b) => {
-    if (a.sideHint !== b.sideHint) return a.sideHint === "left" ? -1 : 1;
-    return a.name.localeCompare(b.name);
-  });
-
-  return {
-    id: `splice-${connections.length}-${cables.length}`,
-    title,
-    connections,
-    cables,
-    warnings,
-  };
+  const cables = [...cableMap.values()].sort((a, b) => (a.sideHint !== b.sideHint ? (a.sideHint === "left" ? -1 : 1) : a.name.localeCompare(b.name)));
+  return { id: `splice-${connections.length}-${cables.length}`, title, connections, cables, warnings };
 }
 
 function parseNormalizedCsv(text: string): SpliceModel | null {
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith("#"));
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith("#"));
   if (lines.length < 2) return null;
-
   const header = splitCsvLine(lines[0]!).map(normalizeHeader);
-  const index = (names: string[]) => names.map((n) => header.indexOf(n)).find((i) => i >= 0) ?? -1;
-
-  const sourceCable = index(["sourcecable", "fromcable", "leftcable", "aCable".toLowerCase()]);
-  const targetCable = index(["targetcable", "tocable", "rightcable", "bCable".toLowerCase()]);
+  const index = (names: string[]) => names.map((name) => header.indexOf(name)).find((item) => item >= 0) ?? -1;
+  const sourceCable = index(["sourcecable", "fromcable", "leftcable", "acable"]);
+  const targetCable = index(["targetcable", "tocable", "rightcable", "bcable"]);
   if (sourceCable < 0 || targetCable < 0) return null;
-
   const sourceTube = index(["sourcetube", "fromtube", "lefttube", "atube"]);
   const targetTube = index(["targettube", "totube", "righttube", "btube"]);
   const sourceFiber = index(["sourcefiber", "fromfiber", "leftfiber", "afiber", "sourcefibernumber"]);
@@ -119,51 +77,24 @@ function parseNormalizedCsv(text: string): SpliceModel | null {
   const sourceColor = index(["sourcefibercolor", "fromfibercolor", "leftfibercolor", "acolor"]);
   const targetColor = index(["targetfibercolor", "tofibercolor", "rightfibercolor", "bcolor"]);
   const circuit = index(["circuit", "circuitname", "os", "label"]);
-
   const warnings: string[] = [];
   const connections: SpliceConnection[] = [];
-
   for (const [rowIndex, line] of lines.slice(1).entries()) {
     const cells = splitCsvLine(line);
     const fallbackFiberNumber = rowIndex + 1;
-    const source = endpointFromCells({
-      role: "source",
-      side: "left",
-      cableName: cells[sourceCable] ?? "",
-      tubeColor: sourceTube >= 0 ? cells[sourceTube] ?? "" : "BL",
-      fiberNumber: sourceFiber >= 0 ? cells[sourceFiber] ?? "" : String(fallbackFiberNumber),
-      fiberColor: sourceColor >= 0 ? cells[sourceColor] ?? "" : cells[sourceFiber] ?? "",
-      fallbackFiberNumber,
-    });
-    const target = endpointFromCells({
-      role: "target",
-      side: "right",
-      cableName: cells[targetCable] ?? "",
-      tubeColor: targetTube >= 0 ? cells[targetTube] ?? "" : "BL",
-      fiberNumber: targetFiber >= 0 ? cells[targetFiber] ?? "" : String(fallbackFiberNumber),
-      fiberColor: targetColor >= 0 ? cells[targetColor] ?? "" : cells[targetFiber] ?? "",
-      fallbackFiberNumber,
-    });
-
+    const source = endpointFromCells({ role: "source", side: "left", cableName: cells[sourceCable] ?? "", tubeColor: sourceTube >= 0 ? cells[sourceTube] ?? "" : "BL", fiberNumber: sourceFiber >= 0 ? cells[sourceFiber] ?? "" : String(fallbackFiberNumber), fiberColor: sourceColor >= 0 ? cells[sourceColor] ?? "" : cells[sourceFiber] ?? "", fallbackFiberNumber });
+    const target = endpointFromCells({ role: "target", side: "right", cableName: cells[targetCable] ?? "", tubeColor: targetTube >= 0 ? cells[targetTube] ?? "" : "BL", fiberNumber: targetFiber >= 0 ? cells[targetFiber] ?? "" : String(fallbackFiberNumber), fiberColor: targetColor >= 0 ? cells[targetColor] ?? "" : cells[targetFiber] ?? "", fallbackFiberNumber });
     if (!source || !target) {
       warnings.push(`Skipped row ${rowIndex + 2}: missing cable, tube, fiber number, or valid fiber color.`);
       continue;
     }
-
-    connections.push({
-      id: `conn-${connections.length + 1}`,
-      source,
-      target,
-      circuitName: circuit >= 0 ? cells[circuit]?.trim() || undefined : undefined,
-      raw: line,
-    });
+    connections.push({ id: `conn-${connections.length + 1}`, source, target, circuitName: circuit >= 0 ? cells[circuit]?.trim() || undefined : undefined, raw: line });
   }
-
   return buildModel(connections, warnings, "Normalized CSV import");
 }
 
 function stripDuplicateTrailingFields(parts: string[]): string[] {
-  const p = parts.map((s) => s.trim());
+  const p = parts.map((item) => item.trim());
   while (p.length > 6 && p[p.length - 1] === p[p.length - 2]) p.pop();
   return p;
 }
@@ -174,50 +105,22 @@ function isOsField(value: string): boolean {
 }
 
 function parseBentleyEndpointFromSide(parts: string[], side: Side, fallbackFiberNumber: number): FiberEndpoint | null {
-  const p = parts.map((s) => s.trim()).filter(Boolean);
+  const p = parts.map((item) => item.trim()).filter(Boolean);
   if (p.length < 5) return null;
-  const device = p[0];
-  const fiberColorRaw = p[p.length - 1] ?? "";
-  const tubeRaw = p[p.length - 2] ?? "";
-  const fiberNumberRaw = p[p.length - 3] ?? "";
-  const cableName = p.slice(1, p.length - 3).join(", ");
-  return endpointFromCells({
-    role: "source",
-    side,
-    cableName,
-    tubeColor: tubeRaw,
-    fiberNumber: fiberNumberRaw,
-    fiberColor: fiberColorRaw,
-    device,
-    fallbackFiberNumber,
-  });
+  return endpointFromCells({ role: "source", side, cableName: p.slice(1, p.length - 3).join(", "), tubeColor: p[p.length - 2] ?? "", fiberNumber: p[p.length - 3] ?? "", fiberColor: p[p.length - 1] ?? "", device: p[0], fallbackFiberNumber });
 }
 
 function parseBentleyEndpointToSide(parts: string[], side: Side, fallbackFiberNumber: number): FiberEndpoint | null {
-  let p = stripDuplicateTrailingFields(parts.map((s) => s.trim()));
+  let p = stripDuplicateTrailingFields(parts.map((item) => item.trim()));
   while (p.length > 0 && p[p.length - 1] === "") p = p.slice(0, -1);
   const tailLen = isOsField(p[p.length - 1] ?? "") ? 5 : 4;
   if (p.length < tailLen + 1) return null;
   const cableEnd = p.length - tailLen;
-  const cableName = p.slice(0, cableEnd).join(", ");
-  const fiberNumberRaw = p[p.length - tailLen] ?? "";
-  const tubeRaw = p[p.length - tailLen + 1] ?? "";
-  const fiberColorRaw = p[p.length - tailLen + 2] ?? "";
-  const device = p[p.length - tailLen + 3] ?? "";
-  return endpointFromCells({
-    role: "target",
-    side,
-    cableName,
-    tubeColor: tubeRaw,
-    fiberNumber: fiberNumberRaw,
-    fiberColor: fiberColorRaw,
-    device,
-    fallbackFiberNumber,
-  });
+  return endpointFromCells({ role: "target", side, cableName: p.slice(0, cableEnd).join(", "), tubeColor: p[p.length - tailLen + 1] ?? "", fiberNumber: p[p.length - tailLen] ?? "", fiberColor: p[p.length - tailLen + 2] ?? "", device: p[p.length - tailLen + 3] ?? "", fallbackFiberNumber });
 }
 
 function extractCircuitName(parts: string[]): string | undefined {
-  const p = stripDuplicateTrailingFields(parts.map((s) => s.trim())).filter(Boolean);
+  const p = stripDuplicateTrailingFields(parts.map((item) => item.trim())).filter(Boolean);
   const last = p[p.length - 1] ?? "";
   return isOsField(last) ? last : undefined;
 }
@@ -226,21 +129,13 @@ function parseBentleyLikeCsv(text: string): SpliceModel {
   const warnings: string[] = [];
   const connections: SpliceConnection[] = [];
   let section: Side | null = null;
-
   for (const [lineIndex, rawLine] of text.split(/\r?\n/).entries()) {
     const line = rawLine.trim();
     if (!line) continue;
     const marker = line.toLowerCase().replace(/\s+/g, " ");
-    if (marker === "left ---") {
-      section = "left";
-      continue;
-    }
-    if (marker === "right ---") {
-      section = "right";
-      continue;
-    }
+    if (marker === "left ---") { section = "left"; continue; }
+    if (marker === "right ---") { section = "right"; continue; }
     if (!line.includes("<->")) continue;
-
     const [leftRaw, rightRaw] = line.split("<->");
     const leftParts = splitCsvLine(leftRaw ?? "");
     const rightParts = splitCsvLine(rightRaw ?? "");
@@ -249,25 +144,10 @@ function parseBentleyLikeCsv(text: string): SpliceModel {
     const targetSide: Side = sourceSide === "left" ? "right" : "left";
     const source = parseBentleyEndpointFromSide(leftParts, sourceSide, connections.length + 1);
     const target = parseBentleyEndpointToSide(rightParts, targetSide, connections.length + 1);
-
-    if (!source || !target) {
-      warnings.push(`Skipped Bentley-like row ${lineNo}: could not parse both endpoints.`);
-      continue;
-    }
-
-    connections.push({
-      id: `conn-${connections.length + 1}`,
-      source,
-      target,
-      circuitName: extractCircuitName(rightParts),
-      raw: line,
-    });
+    if (!source || !target) { warnings.push(`Skipped Bentley-like row ${lineNo}: could not parse both endpoints.`); continue; }
+    connections.push({ id: `conn-${connections.length + 1}`, source, target, circuitName: extractCircuitName(rightParts), raw: line });
   }
-
-  if (connections.length === 0) {
-    warnings.push("No splice rows were found. Use the sample normalized CSV format or Bentley rows containing <->.");
-  }
-
+  if (connections.length === 0) warnings.push("No splice rows were found. Use the sample normalized CSV format or Bentley rows containing <->.");
   return buildModel(connections, warnings, "Bentley-like CSV import");
 }
 

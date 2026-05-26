@@ -1,19 +1,6 @@
 import type { FiberColor } from "./types";
 
-export const TIA_COLORS: FiberColor[] = [
-  "BL",
-  "OR",
-  "GR",
-  "BR",
-  "SL",
-  "WH",
-  "RD",
-  "BK",
-  "YL",
-  "VI",
-  "RO",
-  "AQ",
-];
+export const TIA_COLORS: FiberColor[] = ["BL", "OR", "GR", "BR", "SL", "WH", "RD", "BK", "YL", "VI", "RO", "AQ"];
 
 export const fiberColorHex: Record<FiberColor, string> = {
   BL: "#2563eb",
@@ -48,37 +35,18 @@ export const fiberTextColor: Record<FiberColor, string> = {
 export function normalizeFiberColor(input: string): FiberColor | null {
   const raw = input.trim().toUpperCase();
   const aliases: Record<string, FiberColor> = {
-    BLUE: "BL",
-    BLU: "BL",
-    BL: "BL",
-    ORANGE: "OR",
-    ORG: "OR",
-    OR: "OR",
-    GREEN: "GR",
-    GRN: "GR",
-    GR: "GR",
-    BROWN: "BR",
-    BRN: "BR",
-    BR: "BR",
-    SLATE: "SL",
-    SL: "SL",
-    WHITE: "WH",
-    WHT: "WH",
-    WH: "WH",
-    RED: "RD",
-    RD: "RD",
-    BLACK: "BK",
-    BLK: "BK",
-    BK: "BK",
-    YELLOW: "YL",
-    YL: "YL",
-    VIOLET: "VI",
-    VIO: "VI",
-    VI: "VI",
-    ROSE: "RO",
-    RO: "RO",
-    AQUA: "AQ",
-    AQ: "AQ",
+    BLUE: "BL", BLU: "BL", BL: "BL",
+    ORANGE: "OR", ORG: "OR", OR: "OR",
+    GREEN: "GR", GRN: "GR", GR: "GR",
+    BROWN: "BR", BRN: "BR", BR: "BR",
+    SLATE: "SL", SL: "SL",
+    WHITE: "WH", WHT: "WH", WH: "WH",
+    RED: "RD", RD: "RD",
+    BLACK: "BK", BLK: "BK", BK: "BK",
+    YELLOW: "YL", YL: "YL",
+    VIOLET: "VI", VIO: "VI", VI: "VI",
+    ROSE: "RO", RO: "RO",
+    AQUA: "AQ", AQ: "AQ",
   };
   return aliases[raw] ?? null;
 }
@@ -88,9 +56,7 @@ export function normalizeTubeColor(input: string): string {
   const parts = raw.split(/[-/ ]+/).filter(Boolean);
   const first = normalizeFiberColor(parts[0] ?? raw);
   if (!first) return raw || "UNK";
-  if (parts.some((part) => normalizeFiberColor(part) === "BK") && first !== "BK") {
-    return `${first}-BK`;
-  }
+  if (parts.some((part) => normalizeFiberColor(part) === "BK") && first !== "BK") return `${first}-BK`;
   return first;
 }
 
