@@ -1,10 +1,12 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import {
   Background,
   Controls,
+  Panel,
   ReactFlow,
   ReactFlowProvider,
   ViewportPortal,
+  useNodesState,
   type NodeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -26,26 +28,31 @@ function routeMidpoint(points: Point[]): Point {
   return points[Math.floor(points.length / 2)] ?? { x: 0, y: 0 };
 }
 
+function buildFlowNodes(layout: LayoutPlan): CableFlowNode[] {
+  return layout.cables.map((cable) => ({
+    id: cable.id,
+    type: "cable",
+    position: { x: cable.x, y: cable.y },
+    data: { cable },
+    draggable: true,
+    selectable: true,
+    style: {
+      width: cable.width,
+      height: cable.height,
+      background: "transparent",
+      border: "none",
+      padding: 0,
+    },
+  }));
+}
+
 function SpliceCanvasInner({ layout, routes, overrides, onOverridesChange }: Props) {
-  const nodes = useMemo<CableFlowNode[]>(
-    () =>
-      layout.cables.map((cable) => ({
-        id: cable.id,
-        type: "cable",
-        position: { x: cable.x, y: cable.y },
-        data: { cable },
-        draggable: true,
-        selectable: true,
-        style: {
-          width: cable.width,
-          height: cable.height,
-          background: "transparent",
-          border: "none",
-          padding: 0,
-        },
-      })),
-    [layout.cables],
-  );
+  const nodesForLayout = useMemo(() => buildFlowNodes(layout), [layout]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<CableFlowNode>(nodesForLayout);
+
+  useEffect(() => {
+    setNodes(nodesForLayout);
+  }, [nodesForLayout, setNodes]);
 
   const updateCablePosition = (cableId: string, position: Point) => {
     const cable = layout.cables.find((item) => item.id === cableId);
@@ -76,12 +83,11 @@ function SpliceCanvasInner({ layout, routes, overrides, onOverridesChange }: Pro
         nodes={nodes}
         edges={[]}
         nodeTypes={nodeTypes}
-        onNodeDrag={(_, node) => updateCablePosition(node.id, node.position)}
+        onNodesChange={onNodesChange}
         onNodeDragStop={(_, node) => updateCablePosition(node.id, node.position)}
+        defaultViewport={{ x: 0, y: 0, zoom: 0.82 }}
         minZoom={0.08}
         maxZoom={2.2}
-        fitView
-        fitViewOptions={{ padding: 0.18, maxZoom: 1 }}
         proOptions={{ hideAttribution: true }}
         nodesDraggable
         nodesConnectable={false}
@@ -89,6 +95,9 @@ function SpliceCanvasInner({ layout, routes, overrides, onOverridesChange }: Pro
       >
         <Background gap={32} color="#cbd5e1" />
         <Controls position="bottom-right" />
+        <Panel position="top-left" className="canvas-debug-panel">
+          {layout.cables.length === 0 ? "No cable nodes parsed" : `${layout.cables.length} cable nodes · ${routes.routes.length} SVG routes`}
+        </Panel>
         <ViewportPortal>
           <svg className="route-overlay" width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`}>
             <line x1={layout.centerX} x2={layout.centerX} y1="28" y2={layout.height - 28} stroke="#cbd5e1" strokeDasharray="9 10" />

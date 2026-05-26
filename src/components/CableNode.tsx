@@ -53,7 +53,7 @@ export function CableNode({ data, selected }: NodeProps<CableFlowNode>) {
       <text x={labelX} y="15" textAnchor={leftSide ? "start" : "end"} className="cable-name">{cable.name}</text>
       <text x={labelX} y="31" textAnchor={leftSide ? "start" : "end"} className="cable-side">{sideLabel(cable.side)}</text>
 
-      <rect x={sheathX} y={sheathY} width={sheathW} height={sheathH} rx="22" fill="#1e293b" stroke={selected ? "#2563eb" : "#0f172a"} strokeWidth={selected ? 3 : 1.5} filter="drop-shadow(0 3px 4px rgb(15 23 42 / 0.16))" />
+      <rect x={sheathX} y={sheathY} width={sheathW} height={sheathH} rx="22" fill="#1e293b" stroke={selected ? "#2563eb" : "#0f172a"} strokeWidth={selected ? 3 : 1.5} />
       <ellipse cx={sheathX + sheathW / 2} cy={sheathY + 13} rx={sheathW / 2} ry="13" fill="#334155" />
       <ellipse cx={sheathX + sheathW / 2} cy={sheathY + sheathH - 13} rx={sheathW / 2} ry="13" fill="#0f172a" opacity="0.5" />
 

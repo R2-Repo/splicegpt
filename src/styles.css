@@ -9,6 +9,13 @@
 
 * { box-sizing: border-box; }
 
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+}
+
 body {
   margin: 0;
   min-width: 980px;
@@ -18,6 +25,8 @@ body {
 button, input { font: inherit; }
 
 .app-shell {
+  width: 100%;
+  height: 100%;
   min-height: 100vh;
   padding: 0;
   display: flex;
@@ -26,6 +35,7 @@ button, input { font: inherit; }
 
 .top-import-bar {
   height: 54px;
+  flex: 0 0 54px;
   padding: 8px 12px;
   display: flex;
   align-items: center;
@@ -33,8 +43,6 @@ button, input { font: inherit; }
   border-bottom: 1px solid #cbd5e1;
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(8px);
-  position: sticky;
-  top: 0;
   z-index: 10;
 }
 
@@ -68,20 +76,24 @@ button, input { font: inherit; }
 }
 
 .canvas-shell {
-  flex: 1;
-  height: calc(100vh - 54px);
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 640px;
   background: #e2e8f0;
+  position: relative;
 }
 
-.react-flow {
+.canvas-shell .react-flow {
+  width: 100%;
+  height: 100%;
   background: #f8fafc;
 }
 
 .react-flow__node-cable {
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  padding: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
 }
 
 .react-flow__node.selected .cable-node-svg {
@@ -102,6 +114,17 @@ button, input { font: inherit; }
 }
 
 .route-group:hover path:nth-child(2) { stroke-width: 5; }
+
+.canvas-debug-panel {
+  padding: 6px 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
 
 .center-label {
   font-size: 12px;
