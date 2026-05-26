@@ -2,7 +2,7 @@ import { colorSortIndex, normalizeFiberColor, normalizeTubeColor } from "./color
 import type { FiberColor, FiberEndpoint, Side, SpliceConnection, SpliceModel } from "./types";
 
 type DraftEndpoint = FiberEndpoint & { explicitFiberNumber: boolean };
-type BentleyRow = { lineNumber: number; section: Side | null; from: DraftEndpoint; to: DraftEndpoint; os?: string; raw: string };
+type BentleyRow = { lineNumber: number; section: Side | null; source: DraftEndpoint; target: DraftEndpoint; os?: string; raw: string };
 
 function splitCsv(line: string): string[] {
   const cells: string[] = [];
@@ -30,13 +30,12 @@ function headerKey(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
-function slug(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+function canonicalCableName(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
 }
 
-function cableId(cable: string, role?: "source" | "target", splitLegs = false): string {
-  const base = `cable:${slug(cable)}`;
-  return splitLegs && role ? `${base}:${role}` : base;
+function cableId(cable: string): string {
+  return `cable:${encodeURIComponent(canonicalCableName(cable))}`;
 }
 
 function parseFiberNumber(raw: string): number | null {
@@ -62,9 +61,8 @@ function endpoint(args: {
   fiberColor: string;
   device?: string;
   fallback: number;
-  splitLegs?: boolean;
 }): DraftEndpoint | null {
-  const cable = args.cable.trim();
+  const cable = canonicalCableName(args.cable);
   const color = normalizeFiberColor(args.fiberColor) as FiberColor | null;
   if (!cable || !color) return null;
   const number = inferredFiberNumber(args.fiberNumber, args.tube, args.fiberColor, args.fallback);
@@ -72,13 +70,17 @@ function endpoint(args: {
   return {
     role: args.role,
     cableName: cable,
-    cableId: cableId(cable, args.role, args.splitLegs),
+    cableId: cableId(cable),
     tubeColor: normalizeTubeColor(args.tube),
     fiberNumber: number.value,
     fiberColor: color,
     device,
     explicitFiberNumber: number.explicit,
   };
+}
+
+function withRole(ep: DraftEndpoint, role: "source" | "target"): DraftEndpoint {
+  return { ...ep, role };
 }
 
 function asEndpoint(ep: DraftEndpoint, role: "source" | "target"): FiberEndpoint {
@@ -95,6 +97,10 @@ function asEndpoint(ep: DraftEndpoint, role: "source" | "target"): FiberEndpoint
 
 function physicalKey(ep: Pick<FiberEndpoint, "cableId" | "fiberNumber" | "tubeColor" | "fiberColor">): string {
   return [ep.cableId, ep.fiberNumber, ep.tubeColor, ep.fiberColor].join("|");
+}
+
+function fiberColorKey(ep: Pick<FiberEndpoint, "cableId" | "tubeColor" | "fiberColor">): string {
+  return [ep.cableId, ep.tubeColor, ep.fiberColor].join("|");
 }
 
 function pairKey(a: FiberEndpoint, b: FiberEndpoint): string {
@@ -137,7 +143,6 @@ function parseBentleyFrom(parts: string[], fallback: number): DraftEndpoint | nu
     tube: p[p.length - 2] ?? "",
     fiberColor: p[p.length - 1] ?? "",
     fallback,
-    splitLegs: true,
   });
 }
 
@@ -154,20 +159,45 @@ function parseBentleyTo(parts: string[], fallback: number): DraftEndpoint | null
     fiberColor: p[cableEnd + 2] ?? "",
     device: p[cableEnd + 3],
     fallback,
-    splitLegs: true,
   });
 }
 
-function normalizeBentleyPair(from: DraftEndpoint, to: DraftEndpoint): { from: DraftEndpoint; to: DraftEndpoint } {
-  if (!to.explicitFiberNumber && from.explicitFiberNumber && from.tubeColor === to.tubeColor) return { from, to: { ...to, fiberNumber: from.fiberNumber } };
-  if (!from.explicitFiberNumber && to.explicitFiberNumber && from.tubeColor === to.tubeColor) return { from: { ...from, fiberNumber: to.fiberNumber }, to };
-  return { from, to };
+function orientBentleyEndpoints(section: Side | null, from: DraftEndpoint, to: DraftEndpoint): { source: DraftEndpoint; target: DraftEndpoint } {
+  if (section === "right") {
+    return { source: withRole(to, "source"), target: withRole(from, "target") };
+  }
+  return { source: withRole(from, "source"), target: withRole(to, "target") };
 }
 
 function circuitFromRight(parts: string[]): string | undefined {
   const p = trimTo(parts);
   const last = p[p.length - 1] ?? "";
   return isOs(last) ? last : undefined;
+}
+
+function applyObservedFiberNumbers(rows: BentleyRow[], warnings: string[]): void {
+  const observed = new Map<string, Set<number>>();
+
+  for (const row of rows) {
+    for (const ep of [row.source, row.target]) {
+      if (!ep.explicitFiberNumber) continue;
+      const key = fiberColorKey(ep);
+      if (!observed.has(key)) observed.set(key, new Set<number>());
+      observed.get(key)!.add(ep.fiberNumber);
+    }
+  }
+
+  for (const row of rows) {
+    for (const ep of [row.source, row.target]) {
+      if (ep.explicitFiberNumber) continue;
+      const candidates = [...(observed.get(fiberColorKey(ep)) ?? [])];
+      if (candidates.length === 1) {
+        ep.fiberNumber = candidates[0]!;
+      } else if (candidates.length > 1) {
+        warnings.push(`Line ${row.lineNumber}: ambiguous Bentley fiber number for ${ep.cableName} ${ep.tubeColor}/${ep.fiberColor}.`);
+      }
+    }
+  }
 }
 
 function buildModel(connections: SpliceConnection[], warnings: string[], title: string): SpliceModel {
@@ -257,24 +287,26 @@ function parseBentleyCsv(text: string): SpliceModel {
       warnings.push(`Skipped Bentley row ${lineIndex + 1}: invalid endpoint.`);
       continue;
     }
-    const { from, to } = normalizeBentleyPair(fromRaw, toRaw);
-    rows.push({ lineNumber: lineIndex + 1, section, from, to, os: circuitFromRight(splitCsv(rightRaw ?? "")), raw: line });
+    const { source, target } = orientBentleyEndpoints(section, fromRaw, toRaw);
+    rows.push({ lineNumber: lineIndex + 1, section, source, target, os: circuitFromRight(splitCsv(rightRaw ?? "")), raw: line });
   }
-  const leftRows = rows.filter((row) => row.section === "left");
-  const rightRows = rows.filter((row) => row.section === "right");
-  const authoritativeRows = leftRows.length > 0 ? leftRows : rows;
-  if (leftRows.length > 0 && rightRows.length > 0) warnings.push(`Used ${leftRows.length} Left row(s); ${rightRows.length} Right row(s) were treated as mirror/hint rows only.`);
-  if (leftRows.length === 0 && rightRows.length > 0) warnings.push("No Left section rows were found; using all parsed Bentley rows as fallback.");
-  const seen = new Set<string>();
+
+  applyObservedFiberNumbers(rows, warnings);
+
+  const seen = new Map<string, BentleyRow>();
   const connections: SpliceConnection[] = [];
-  for (const row of authoritativeRows.sort((a, b) => a.lineNumber - b.lineNumber)) {
-    const key = pairKey(row.from, row.to);
-    if (seen.has(key)) continue;
-    seen.add(key);
+  for (const row of rows.sort((a, b) => a.lineNumber - b.lineNumber)) {
+    const key = pairKey(row.source, row.target);
+    const existing = seen.get(key);
+    if (existing) {
+      if (!existing.os && row.os) existing.os = row.os;
+      continue;
+    }
+    seen.set(key, row);
     connections.push({
       id: `conn-${connections.length + 1}`,
-      source: asEndpoint(row.from, "source"),
-      target: asEndpoint(row.to, "target"),
+      source: asEndpoint(row.source, "source"),
+      target: asEndpoint(row.target, "target"),
       circuitName: row.os,
       raw: row.raw,
     });
