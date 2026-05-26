@@ -5,10 +5,10 @@ export const FIBER_ROW_PITCH = 24;
 export const TUBE_GROUP_GAP = 8;
 export const SAME_SIDE_CABLE_GAP = 32;
 
-const CANVAS_MIN_WIDTH = 1320;
+const CANVAS_MIN_WIDTH = 1480;
 const TOP_PADDING = 64;
 const SIDE_X = 54;
-const CABLE_WIDTH = 264;
+const CABLE_WIDTH = 430;
 const HEADER_HEIGHT = 26;
 const BOTTOM_PADDING = 86;
 
@@ -91,7 +91,7 @@ function placeSide(model: SpliceModel, side: Side, overrides: DiagramOverrides, 
 
 export function createLayoutPlan(model: SpliceModel, overrides: DiagramOverrides): LayoutPlan {
   const maxCableCount = Math.max(sortedCableIdsForSide(model, "left", overrides).length, sortedCableIdsForSide(model, "right", overrides).length, 1);
-  const canvasWidth = Math.max(CANVAS_MIN_WIDTH, 1040 + maxCableCount * 52);
+  const canvasWidth = Math.max(CANVAS_MIN_WIDTH, 1200 + maxCableCount * 52);
   const cables = [...placeSide(model, "left", overrides, canvasWidth), ...placeSide(model, "right", overrides, canvasWidth)];
   const anchorsByConnection: LayoutPlan["anchorsByConnection"] = {};
   for (const conn of model.connections) {

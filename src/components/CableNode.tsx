@@ -14,26 +14,47 @@ type TubeGroup = {
   centerY: number;
 };
 
-const BODY_WIDTH = 128;
-const BODY_HEIGHT = 54;
-const BODY_MARGIN = 8;
-const BODY_FACE_RX = 9;
-const TUBE_HUB_OFFSET = 54;
-const TUBE_HUB_MIN_GAP = 78;
+const BODY_WIDTH = 138;
+const BODY_HEIGHT = 52;
+const BODY_MARGIN = 10;
+const BODY_RADIUS = 10;
+const TUBE_HUB_OFFSET = 66;
+const TUBE_HUB_MIN_GAP = 112;
+const FIBER_FAN_LENGTH = 72;
+const LABEL_LANE_MIN = 92;
 
 function fmt(value: number): string {
   return value.toFixed(1);
 }
 
-function shortLabel(value: string, maxLength = 18): string {
-  return value.length > maxLength ? `${value.slice(0, maxLength - 3)}...` : value;
+function shortLabel(value: string, maxLength: number): string {
+  return value.length > maxLength ? `${value.slice(0, Math.max(1, maxLength - 3))}...` : value;
+}
+
+function cableNameFontSize(value: string): number {
+  if (value.length > 22) return 10.5;
+  if (value.length > 17) return 11.5;
+  return 13;
+}
+
+function fittedCableName(value: string): string {
+  const fontSize = cableNameFontSize(value);
+  const maxChars = Math.max(8, Math.floor((BODY_WIDTH - 20) / (fontSize * 0.58)));
+  return shortLabel(value, maxChars);
+}
+
+function circuitLabel(value?: string): string {
+  if (!value) return "";
+  const clean = value.trim();
+  if (!clean) return "";
+  return `(${shortLabel(clean, 13)})`;
 }
 
 function fanPath(source: Point, target: Point, leftSide: boolean): string {
   const direction = leftSide ? 1 : -1;
   const dx = Math.abs(target.x - source.x);
-  const sourceHandle = Math.max(20, Math.min(70, dx * 0.7));
-  const targetHandle = Math.max(14, Math.min(42, dx * 0.35));
+  const sourceHandle = Math.max(18, Math.min(62, dx * 0.65));
+  const targetHandle = Math.max(12, Math.min(34, dx * 0.32));
 
   return [
     `M ${fmt(source.x)} ${fmt(source.y)}`,
@@ -79,55 +100,41 @@ export function CableNode({ data, selected }: NodeProps<CableFlowNode>) {
   const bodyY = Math.max(12, cable.height / 2 - BODY_HEIGHT / 2);
   const bodyCenter = { x: bodyX + BODY_WIDTH / 2, y: bodyY + BODY_HEIGHT / 2 };
   const frontFaceX = leftSide ? bodyX + BODY_WIDTH : bodyX;
-  const rearFaceX = leftSide ? bodyX : bodyX + BODY_WIDTH;
   const tubeSource = { x: frontFaceX, y: bodyCenter.y };
   const tubeHubX = leftSide
     ? Math.min(cable.width - TUBE_HUB_MIN_GAP, frontFaceX + TUBE_HUB_OFFSET)
     : Math.max(TUBE_HUB_MIN_GAP, frontFaceX - TUBE_HUB_OFFSET);
   const fiberTipX = leftSide ? cable.width : 0;
-  const fiberLabelX = leftSide ? cable.width - 34 : 34;
-  const fiberTextAnchor = leftSide ? "end" : "start";
+  const fiberFanEndX = leftSide
+    ? Math.min(fiberTipX - LABEL_LANE_MIN, tubeHubX + FIBER_FAN_LENGTH)
+    : Math.max(fiberTipX + LABEL_LANE_MIN, tubeHubX - FIBER_FAN_LENGTH);
+  const fiberTextAnchor = leftSide ? "start" : "end";
+  const osTextAnchor = leftSide ? "start" : "end";
   const tubeTextAnchor = leftSide ? "end" : "start";
   const tubeLabelOffset = leftSide ? -8 : 8;
+  const colorLabelX = leftSide ? fiberFanEndX + 8 : fiberFanEndX - 8;
+  const osLabelX = leftSide ? colorLabelX + 31 : colorLabelX - 31;
   const countLabel = `${cable.anchors.length}F`;
-  const cylinderStroke = selected ? "#2563eb" : "#0f172a";
-  const cylinderStrokeWidth = selected ? 3 : 1.8;
+  const bodyStroke = selected ? "#2563eb" : "#0f172a";
+  const bodyStrokeWidth = selected ? 3 : 1.8;
+  const nameFontSize = cableNameFontSize(cable.name);
 
   return (
     <svg className="cable-node-svg" width={cable.width} height={cable.height} viewBox={`0 0 ${cable.width} ${cable.height}`}>
       <rect x="0" y="0" width={cable.width} height={cable.height} rx="10" fill="transparent" />
 
-      <g className="cable-cylinder">
+      <g className="cable-body">
         <rect
           x={bodyX}
           y={bodyY}
           width={BODY_WIDTH}
           height={BODY_HEIGHT}
-          rx={BODY_HEIGHT / 2}
+          rx={BODY_RADIUS}
           fill="transparent"
-          stroke={cylinderStroke}
-          strokeWidth={cylinderStrokeWidth}
+          stroke={bodyStroke}
+          strokeWidth={bodyStrokeWidth}
         />
-        <ellipse
-          cx={frontFaceX}
-          cy={bodyCenter.y}
-          rx={BODY_FACE_RX}
-          ry={BODY_HEIGHT / 2}
-          fill="transparent"
-          stroke={cylinderStroke}
-          strokeWidth={cylinderStrokeWidth}
-        />
-        <ellipse
-          cx={rearFaceX}
-          cy={bodyCenter.y}
-          rx={BODY_FACE_RX}
-          ry={BODY_HEIGHT / 2}
-          fill="transparent"
-          stroke="#0f172a"
-          strokeWidth="1.2"
-          opacity="0.45"
-        />
-        <text x={bodyCenter.x} y={bodyCenter.y - 3} textAnchor="middle" className="cable-cylinder-title">{shortLabel(cable.name)}</text>
+        <text x={bodyCenter.x} y={bodyCenter.y - 3} textAnchor="middle" className="cable-cylinder-title" style={{ fontSize: nameFontSize }}>{fittedCableName(cable.name)}</text>
         <text x={bodyCenter.x} y={bodyCenter.y + 14} textAnchor="middle" className="cable-cylinder-subtitle">{countLabel}</text>
         <title>{cable.name}</title>
       </g>
@@ -143,12 +150,12 @@ export function CableNode({ data, selected }: NodeProps<CableFlowNode>) {
               d={d}
               fill="none"
               stroke={tube.color}
-              strokeWidth="5.5"
+              strokeWidth="5.2"
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeDasharray={tube.dash}
             />
-            <circle cx={tubeEnd.x} cy={tubeEnd.y} r="3.6" fill={tube.color} stroke="#0f172a" strokeWidth="1" />
+            <circle cx={tubeEnd.x} cy={tubeEnd.y} r="3.2" fill={tube.color} stroke="#0f172a" strokeWidth="1" />
             <text x={tubeEnd.x + tubeLabelOffset} y={tubeEnd.y - 8} textAnchor={tubeTextAnchor} className="tube-label">{group.tubeColor}</text>
           </g>
         );
@@ -158,13 +165,17 @@ export function CableNode({ data, selected }: NodeProps<CableFlowNode>) {
         const color = fiberColorHex[anchor.fiberColor];
         const group = groupByTube.get(String(anchor.tubeColor));
         const fiberStart = { x: tubeHubX, y: group?.centerY ?? anchor.localY };
-        const fiberEnd = { x: fiberTipX, y: anchor.localY };
-        const d = fanPath(fiberStart, fiberEnd, leftSide);
+        const fanEnd = { x: fiberFanEndX, y: anchor.localY };
+        const d = fanPath(fiberStart, fanEnd, leftSide);
+        const horizontalD = `M ${fmt(fanEnd.x)} ${fmt(anchor.localY)} L ${fmt(fiberTipX)} ${fmt(anchor.localY)}`;
+        const os = circuitLabel(anchor.circuitName);
 
         return (
           <g key={`${anchor.connectionId}-${anchor.role}`}>
-            <path d={d} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-            <text x={fiberLabelX} y={anchor.localY + 3.5} textAnchor={fiberTextAnchor} className="fiber-label">{anchor.fiberColor}</text>
+            <path d={d} fill="none" stroke={color} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
+            <path d={horizontalD} fill="none" stroke={color} strokeWidth="2.1" strokeLinecap="round" />
+            <text x={colorLabelX} y={anchor.localY + 3.2} textAnchor={fiberTextAnchor} className="fiber-label">{anchor.fiberColor}</text>
+            {os ? <text x={osLabelX} y={anchor.localY + 3.2} textAnchor={osTextAnchor} className="fiber-os-label">{os}</text> : null}
           </g>
         );
       })}
