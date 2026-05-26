@@ -1,14 +1,15 @@
 import { colorSortIndex } from "./colors";
 import type { CableLayout, DiagramOverrides, FiberAnchor, FiberEndpoint, LayoutPlan, Point, Side, SpliceConnection, SpliceModel } from "./types";
 
+export const FIBER_ROW_PITCH = 24;
+export const TUBE_GROUP_GAP = 8;
+export const SAME_SIDE_CABLE_GAP = 32;
+
 const CANVAS_MIN_WIDTH = 1240;
 const TOP_PADDING = 64;
-const SIDE_X = 70;
-const CABLE_WIDTH = 190;
-const ROW_HEIGHT = 18;
-const TUBE_GAP = 12;
-const CABLE_GAP = 46;
-const HEADER_HEIGHT = 40;
+const SIDE_X = 54;
+const CABLE_WIDTH = 172;
+const HEADER_HEIGHT = 34;
 const BOTTOM_PADDING = 86;
 
 function compareFiber(a: FiberEndpoint, b: FiberEndpoint): number {
@@ -17,7 +18,7 @@ function compareFiber(a: FiberEndpoint, b: FiberEndpoint): number {
 
 function cableHeight(fibers: FiberEndpoint[]): number {
   const tubeCount = new Set(fibers.map((fiber) => fiber.tubeColor)).size || 1;
-  return HEADER_HEIGHT + fibers.length * ROW_HEIGHT + Math.max(0, tubeCount - 1) * TUBE_GAP + 28;
+  return HEADER_HEIGHT + fibers.length * FIBER_ROW_PITCH + Math.max(0, tubeCount - 1) * TUBE_GROUP_GAP + 24;
 }
 
 function sideFromOverrideOrHint(modelSide: Side, override?: { side?: Side; position?: Point }): Side {
@@ -36,7 +37,14 @@ function sortedCableIdsForSide(model: SpliceModel, side: Side, overrides: Diagra
     .map((cable) => cable.id);
 }
 
-function buildCableLayout(args: { model: SpliceModel; cableId: string; side: Side; x: number; y: number; connectionsById: Map<string, SpliceConnection> }): CableLayout {
+function connectionForFiber(fiber: FiberEndpoint, connections: SpliceConnection[]): SpliceConnection | undefined {
+  return connections.find((conn) =>
+    (conn.source.cableId === fiber.cableId && conn.source.tubeColor === fiber.tubeColor && conn.source.fiberNumber === fiber.fiberNumber && conn.source.fiberColor === fiber.fiberColor && conn.source.role === fiber.role) ||
+    (conn.target.cableId === fiber.cableId && conn.target.tubeColor === fiber.tubeColor && conn.target.fiberNumber === fiber.fiberNumber && conn.target.fiberColor === fiber.fiberColor && conn.target.role === fiber.role),
+  );
+}
+
+function buildCableLayout(args: { model: SpliceModel; cableId: string; side: Side; x: number; y: number; connections: SpliceConnection[] }): CableLayout {
   const cable = args.model.cables.find((item) => item.id === args.cableId);
   if (!cable) throw new Error(`Unknown cable ${args.cableId}`);
 
@@ -44,7 +52,7 @@ function buildCableLayout(args: { model: SpliceModel; cableId: string; side: Sid
   for (const fiber of cable.fibers) uniqueFibers.set(`${fiber.tubeColor}:${fiber.fiberNumber}:${fiber.fiberColor}:${fiber.role}`, fiber);
   const fibers = [...uniqueFibers.values()].sort(compareFiber);
   const tubeCounts = new Map<string, number>();
-  const tubeOrder = [...new Set(fibers.map((fiber) => String(fiber.tubeColor)))];
+  const tubeOrder = [...new Set(fibers.map((fiber) => String(fiber.tubeColor)))].sort((a, b) => colorSortIndex(a) - colorSortIndex(b));
   for (const tube of tubeOrder) tubeCounts.set(tube, 0);
 
   const anchors: FiberAnchor[] = [];
@@ -52,11 +60,11 @@ function buildCableLayout(args: { model: SpliceModel; cableId: string; side: Sid
     const tubeIndex = tubeOrder.indexOf(String(fiber.tubeColor));
     const withinTubeIndex = tubeCounts.get(String(fiber.tubeColor)) ?? 0;
     tubeCounts.set(String(fiber.tubeColor), withinTubeIndex + 1);
-    const localY = HEADER_HEIGHT + tubeIndex * TUBE_GAP + anchors.length * ROW_HEIGHT + ROW_HEIGHT / 2;
-    const connection = [...args.connectionsById.values()].find((conn) =>
-      (conn.source.cableId === fiber.cableId && conn.source.tubeColor === fiber.tubeColor && conn.source.fiberNumber === fiber.fiberNumber && conn.source.fiberColor === fiber.fiberColor) ||
-      (conn.target.cableId === fiber.cableId && conn.target.tubeColor === fiber.tubeColor && conn.target.fiberNumber === fiber.fiberNumber && conn.target.fiberColor === fiber.fiberColor),
-    );
+    const priorFibers = [...tubeCounts.entries()]
+      .filter(([tube]) => tubeOrder.indexOf(tube) < tubeIndex)
+      .reduce((sum, [, count]) => sum + count, 0);
+    const localY = HEADER_HEIGHT + tubeIndex * TUBE_GROUP_GAP + (priorFibers + withinTubeIndex) * FIBER_ROW_PITCH + FIBER_ROW_PITCH / 2;
+    const connection = connectionForFiber(fiber, args.connections);
     if (!connection) continue;
     const handleX = args.side === "left" ? args.x + CABLE_WIDTH : args.x;
     anchors.push({ ...fiber, connectionId: connection.id, circuitName: connection.circuitName, localY, absolute: { x: handleX, y: args.y + localY } });
@@ -68,16 +76,15 @@ function buildCableLayout(args: { model: SpliceModel; cableId: string; side: Sid
 function placeSide(model: SpliceModel, side: Side, overrides: DiagramOverrides, canvasWidth: number): CableLayout[] {
   const ids = sortedCableIdsForSide(model, side, overrides);
   const x = side === "left" ? SIDE_X : canvasWidth - SIDE_X - CABLE_WIDTH;
-  const connectionsById = new Map(model.connections.map((conn) => [conn.id, conn]));
   let cursorY = TOP_PADDING;
   const layouts: CableLayout[] = [];
   for (const cableId of ids) {
     const override = overrides.cableOverrides[cableId];
     const baseY = override?.position?.y ?? cursorY;
     const baseX = override?.position?.x ?? x;
-    const layout = buildCableLayout({ model, cableId, side, x: baseX, y: baseY, connectionsById });
+    const layout = buildCableLayout({ model, cableId, side, x: baseX, y: baseY, connections: model.connections });
     layouts.push(layout);
-    cursorY = Math.max(cursorY, baseY + layout.height + CABLE_GAP);
+    cursorY = Math.max(cursorY, baseY + layout.height + SAME_SIDE_CABLE_GAP);
   }
   return layouts;
 }

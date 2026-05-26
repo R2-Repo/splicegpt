@@ -12,7 +12,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { sideForCanvasX } from "../engine/layout";
 import { routePath } from "../engine/routing";
-import type { DiagramOverrides, LayoutPlan, Point, RoutePlan } from "../engine/types";
+import type { DiagramOverrides, LayoutPlan, Point, RoutedStrand, RoutePlan } from "../engine/types";
 import { CableNode, type CableFlowNode } from "./CableNode";
 
 type Props = {
@@ -24,8 +24,17 @@ type Props = {
 
 const nodeTypes = { cable: CableNode } as NodeTypes;
 
-function routeMidpoint(points: Point[]): Point {
-  return points[Math.floor(points.length / 2)] ?? { x: 0, y: 0 };
+function fusionPoint(route: RoutedStrand): Point {
+  if (route.points.length <= 2) {
+    return {
+      x: (route.source.x + route.target.x) / 2,
+      y: (route.source.y + route.target.y) / 2,
+    };
+  }
+  return {
+    x: route.midX,
+    y: (route.source.y + route.target.y) / 2,
+  };
 }
 
 function buildFlowNodes(layout: LayoutPlan): CableFlowNode[] {
@@ -93,10 +102,10 @@ function SpliceCanvasInner({ layout, routes, overrides, onOverridesChange }: Pro
         nodesConnectable={false}
         elementsSelectable
       >
-        <Background gap={32} color="#cbd5e1" />
+        <Background gap={24} color="#dbe3ee" />
         <Controls position="bottom-right" />
         <Panel position="top-left" className="canvas-debug-panel">
-          {layout.cables.length === 0 ? "No cable nodes parsed" : `${layout.cables.length} cable nodes · ${routes.routes.length} SVG routes`}
+          {layout.cables.length === 0 ? "No cable nodes parsed" : `${layout.cables.length} cable nodes · ${routes.routes.length} routes · 24px pitch`}
         </Panel>
         <ViewportPortal>
           <svg className="route-overlay" width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`}>
@@ -104,12 +113,12 @@ function SpliceCanvasInner({ layout, routes, overrides, onOverridesChange }: Pro
             <text x={layout.centerX} y="38" textAnchor="middle" className="center-label">splice routing center</text>
             {routes.routes.map((route) => {
               const d = routePath(route.points);
-              const label = routeMidpoint(route.points);
+              const dot = fusionPoint(route);
               return (
                 <g key={route.id} className="route-group" onClick={() => toggleProtected(route.connectionId)}>
                   <path d={d} fill="none" stroke="#f8fafc" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
                   <path d={d} fill="none" stroke={route.protected ? "#64748b" : route.color} strokeWidth={route.protected ? 3.8 : 3} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={route.protected ? "8 6" : undefined} />
-                  <rect x={label.x - 5} y={label.y - 5} width="10" height="10" rx="2" fill="#fff" stroke={route.color} strokeWidth="2" />
+                  <circle cx={dot.x} cy={dot.y} r="4.5" fill="#111827" stroke="#ffffff" strokeWidth="1.5" />
                   <title>{`${route.connectionId}${route.circuitName ? ` - ${route.circuitName}` : ""}. Click to toggle protect/existing.`}</title>
                 </g>
               );
