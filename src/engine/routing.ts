@@ -1,9 +1,9 @@
 import { fiberColorHex } from "./colors";
 import type { DiagramOverrides, LayoutPlan, Point, RoutePlan, RoutedStrand, RoutingDiagnostic, Segment, SpliceConnection, SpliceModel } from "./types";
 
-const LANE_SPACING = 18;
+const LANE_SPACING = 24;
 const SAME_SIDE_INSET = 150;
-const MIN_HANDLE_CLEARANCE = 52;
+const MIN_HANDLE_CLEARANCE = 60;
 
 function zoneKey(source: Point, target: Point, centerX: number): string {
   const sourceSide = source.x < centerX ? "L" : "R";
