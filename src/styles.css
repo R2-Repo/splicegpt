@@ -94,6 +94,7 @@ button, input { font: inherit; }
   border: none !important;
   box-shadow: none !important;
   padding: 0 !important;
+  will-change: transform;
 }
 
 .react-flow__node.selected .cable-node-svg {
@@ -106,6 +107,7 @@ button, input { font: inherit; }
   top: 0;
   overflow: visible;
   pointer-events: none;
+  shape-rendering: geometricPrecision;
 }
 
 .route-group {
@@ -113,7 +115,13 @@ button, input { font: inherit; }
   cursor: pointer;
 }
 
+.route-group path,
+.route-group circle {
+  transition: stroke-width 120ms ease, opacity 120ms ease;
+}
+
 .route-group:hover path:nth-child(2) { stroke-width: 5; }
+.route-group:hover circle { opacity: 0.9; }
 
 .canvas-debug-panel {
   padding: 6px 9px;
