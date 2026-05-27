@@ -1,6 +1,14 @@
 import { fiberColorHex } from "./colors";
 import { routeNestedFiberGroups, routingZoneKey, ROUTE_LANE_SPACING } from "./groupRouting";
-import type { DiagramOverrides, LayoutPlan, RoutePlan, RoutedStrand, RoutingDiagnostic, Segment, SpliceModel } from "./types";
+import type {
+  DiagramOverrides,
+  LayoutPlan,
+  RoutePlan,
+  RoutedStrand,
+  RoutingDiagnostic,
+  Segment,
+  SpliceModel,
+} from "./types";
 
 function verticalRangesOverlap(a: Segment, b: Segment): boolean {
   const a0 = Math.min(a.from.y, a.to.y);
@@ -34,43 +42,73 @@ function bendCount(route: RoutedStrand): number {
 
 function validateRoutes(routes: RoutedStrand[]): RoutingDiagnostic[] {
   const diagnostics: RoutingDiagnostic[] = [];
+
   for (const route of routes) {
     if (bendCount(route) > 2) {
-      diagnostics.push({ level: "error", code: "ROUTE_TOO_MANY_BENDS", message: `Route ${route.connectionId} has more than two 90-degree bends.`, connectionIds: [route.connectionId] });
+      diagnostics.push({
+        level: "error",
+        code: "ROUTE_TOO_MANY_BENDS",
+        message: `Route ${route.connectionId} has more than two 90-degree bends.`,
+        connectionIds: [route.connectionId],
+      });
     }
   }
+
   for (let i = 0; i < routes.length; i += 1) {
     for (let j = i + 1; j < routes.length; j += 1) {
       const a = routes[i]!;
       const b = routes[j]!;
       if (a.zoneKey !== b.zoneKey) continue;
+
       for (const segA of a.segments) {
         for (const segB of b.segments) {
           if (segA.kind !== segB.kind) continue;
           if (segA.kind === "v") {
             const sameTrack = Math.abs(segA.from.x - segB.from.x) < ROUTE_LANE_SPACING - 0.5;
             if (sameTrack && verticalRangesOverlap(segA, segB)) {
-              diagnostics.push({ level: "warning", code: "ROUTE_VERTICAL_STACK", message: `Routes ${a.connectionId} and ${b.connectionId} are stacked on the same vertical lane.`, connectionIds: [a.connectionId, b.connectionId] });
+              diagnostics.push({
+                level: "warning",
+                code: "ROUTE_VERTICAL_STACK",
+                message: `Routes ${a.connectionId} and ${b.connectionId} are stacked on the same vertical lane.`,
+                connectionIds: [a.connectionId, b.connectionId],
+              });
             }
           } else {
             const sameTrack = Math.abs(segA.from.y - segB.from.y) < ROUTE_LANE_SPACING - 0.5;
             if (sameTrack && horizontalRangesOverlap(segA, segB)) {
-              diagnostics.push({ level: "warning", code: "ROUTE_HORIZONTAL_STACK", message: `Routes ${a.connectionId} and ${b.connectionId} are stacked on the same horizontal track.`, connectionIds: [a.connectionId, b.connectionId] });
+              diagnostics.push({
+                level: "warning",
+                code: "ROUTE_HORIZONTAL_STACK",
+                message: `Routes ${a.connectionId} and ${b.connectionId} are stacked on the same horizontal track.`,
+                connectionIds: [a.connectionId, b.connectionId],
+              });
             }
           }
         }
       }
     }
   }
+
   return diagnostics;
 }
 
-export function routeSpliceStrands(model: SpliceModel, layout: LayoutPlan, overrides: DiagramOverrides): RoutePlan {
+export function routeSpliceStrands(
+  model: SpliceModel,
+  layout: LayoutPlan,
+  overrides: DiagramOverrides,
+): RoutePlan {
   const diagnostics: RoutingDiagnostic[] = [];
   const nested = routeNestedFiberGroups(model.connections, layout);
+
   for (const connectionId of nested.missingIds) {
-    diagnostics.push({ level: "error", code: "MISSING_ANCHOR", message: `Missing source or target anchor for ${connectionId}.`, connectionIds: [connectionId] });
+    diagnostics.push({
+      level: "error",
+      code: "MISSING_ANCHOR",
+      message: `Missing source or target anchor for ${connectionId}.`,
+      connectionIds: [connectionId],
+    });
   }
+
   const routes: RoutedStrand[] = nested.routes.map((route) => ({
     id: `route-${route.conn.id}`,
     connectionId: route.conn.id,
@@ -85,10 +123,13 @@ export function routeSpliceStrands(model: SpliceModel, layout: LayoutPlan, overr
     protected: Boolean(overrides.protectedConnectionIds[route.conn.id]),
     circuitName: route.conn.circuitName,
   }));
+
   diagnostics.push(...validateRoutes(routes));
   return { routes, diagnostics };
 }
 
 export function routePath(points: { x: number; y: number }[]): string {
-  return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ");
+  return points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+    .join(" ");
 }

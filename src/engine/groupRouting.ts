@@ -1,5 +1,12 @@
 import { colorSortIndex } from "./colors";
-import type { FiberAnchor, LayoutPlan, Point, RoutedStrand, Segment, SpliceConnection } from "./types";
+import type {
+  FiberAnchor,
+  LayoutPlan,
+  Point,
+  RoutedStrand,
+  Segment,
+  SpliceConnection,
+} from "./types";
 
 export const ROUTE_LANE_SPACING = 24;
 export const ROUTE_GROUP_GAP = 48;
@@ -7,16 +14,14 @@ export const CENTER_ROUTE_MARGIN = 32;
 export const SAME_SIDE_LOOP_INSET = 120;
 export const ROUTE_Y_EPS = 0.5;
 
-type AnchorPair = { source: FiberAnchor; target: FiberAnchor };
+type RouteType = "crossSide" | "sameSideLoop";
 
 type RouteSeed = {
   conn: SpliceConnection;
-  anchors: AnchorPair;
   source: Point;
   target: Point;
-  routeType: "crossSide" | "sameSideLoop";
+  routeType: RouteType;
   groupKey: string;
-  order: number;
 };
 
 type RoutedSeed = RouteSeed & {
@@ -32,7 +37,7 @@ export function routingZoneKey(source: Point, target: Point, centerX: number): s
   return `${sourceSide}-${targetSide}:${Math.round(source.x)}:${Math.round(target.x)}`;
 }
 
-function sourceGroupKey(conn: SpliceConnection): string {
+function fiberGroupKey(conn: SpliceConnection): string {
   return [
     conn.source.cableId,
     String(conn.source.tubeColor),
@@ -65,29 +70,34 @@ function pointsToSegments(points: Point[]): Segment[] {
   return segments;
 }
 
-function buildRoutePoints(source: Point, target: Point, midX: number, routeType: RouteSeed["routeType"]): Point[] {
+function buildRoutePoints(source: Point, target: Point, midX: number): Point[] {
   if (Math.abs(source.y - target.y) <= ROUTE_Y_EPS) return [source, target];
-  if (routeType === "sameSideLoop") {
-    return [source, { x: midX, y: source.y }, { x: midX, y: target.y }, target];
-  }
   return [source, { x: midX, y: source.y }, { x: midX, y: target.y }, target];
 }
 
-function routeTypeFor(source: Point, target: Point, centerX: number): RouteSeed["routeType"] {
+function routeTypeFor(source: Point, target: Point, centerX: number): RouteType {
   return source.x < centerX === target.x < centerX ? "sameSideLoop" : "crossSide";
 }
 
-function centerBounds(layout: LayoutPlan): { left: number; right: number; width: number } {
-  const leftCableRight = Math.max(0, ...layout.cables.filter((c) => c.side === "left").map((c) => c.x + c.width));
-  const rightCableLeft = Math.min(layout.width, ...layout.cables.filter((c) => c.side === "right").map((c) => c.x));
+function centerBounds(layout: LayoutPlan): { left: number; right: number } {
+  const leftCableRight = Math.max(
+    0,
+    ...layout.cables.filter((cable) => cable.side === "left").map((cable) => cable.x + cable.width),
+  );
+  const rightCableLeft = Math.min(
+    layout.width,
+    ...layout.cables.filter((cable) => cable.side === "right").map((cable) => cable.x),
+  );
   const left = Math.min(layout.centerX - ROUTE_LANE_SPACING, leftCableRight + CENTER_ROUTE_MARGIN);
   const right = Math.max(layout.centerX + ROUTE_LANE_SPACING, rightCableLeft - CENTER_ROUTE_MARGIN);
-  return { left, right, width: Math.max(ROUTE_LANE_SPACING, right - left) };
+  return { left, right };
 }
 
 function laneStartForGroups(groupSizes: number[], left: number, right: number): number[] {
   const groupWidths = groupSizes.map((size) => Math.max(0, size - 1) * ROUTE_LANE_SPACING);
-  const totalWidth = groupWidths.reduce((sum, width) => sum + width, 0) + Math.max(0, groupSizes.length - 1) * ROUTE_GROUP_GAP;
+  const totalWidth =
+    groupWidths.reduce((sum, width) => sum + width, 0) +
+    Math.max(0, groupSizes.length - 1) * ROUTE_GROUP_GAP;
   const available = Math.max(0, right - left);
   let cursor = left + Math.max(0, (available - totalWidth) / 2);
   return groupWidths.map((width, index) => {
@@ -97,7 +107,10 @@ function laneStartForGroups(groupSizes: number[], left: number, right: number): 
   });
 }
 
-function routeSeeds(modelConnections: SpliceConnection[], layout: LayoutPlan): { seeds: RouteSeed[]; missingIds: string[] } {
+function routeSeeds(
+  modelConnections: SpliceConnection[],
+  layout: LayoutPlan,
+): { seeds: RouteSeed[]; missingIds: string[] } {
   const seeds: RouteSeed[] = [];
   const missingIds: string[] = [];
 
@@ -111,19 +124,20 @@ function routeSeeds(modelConnections: SpliceConnection[], layout: LayoutPlan): {
     const target = anchors.target.absolute;
     seeds.push({
       conn,
-      anchors,
       source,
       target,
       routeType: routeTypeFor(source, target, layout.centerX),
-      groupKey: sourceGroupKey(conn),
-      order: colorSortIndex(conn.source.fiberColor),
+      groupKey: fiberGroupKey(conn),
     });
   }
 
   return { seeds, missingIds };
 }
 
-export function routeNestedFiberGroups(modelConnections: SpliceConnection[], layout: LayoutPlan): { routes: RoutedSeed[]; missingIds: string[] } {
+export function routeNestedFiberGroups(
+  modelConnections: SpliceConnection[],
+  layout: LayoutPlan,
+): { routes: RoutedSeed[]; missingIds: string[] } {
   const { seeds, missingIds } = routeSeeds(modelConnections, layout);
   const bounds = centerBounds(layout);
   const byZone = new Map<string, RouteSeed[]>();
@@ -137,23 +151,31 @@ export function routeNestedFiberGroups(modelConnections: SpliceConnection[], lay
 
   for (const zoneSeeds of byZone.values()) {
     const byGroup = new Map<string, RouteSeed[]>();
-    for (const seed of zoneSeeds) byGroup.set(seed.groupKey, [...(byGroup.get(seed.groupKey) ?? []), seed]);
+    for (const seed of zoneSeeds) {
+      byGroup.set(seed.groupKey, [...(byGroup.get(seed.groupKey) ?? []), seed]);
+    }
 
     const groups = [...byGroup.values()]
       .map((group) => [...group].sort(compareByNestedFiberOrder))
       .sort((a, b) => compareByNestedFiberOrder(a[0]!, b[0]!));
-    const starts = laneStartForGroups(groups.map((group) => group.length), bounds.left, bounds.right);
+    const starts = laneStartForGroups(
+      groups.map((group) => group.length),
+      bounds.left,
+      bounds.right,
+    );
 
     groups.forEach((group, groupIndex) => {
       const sameSideLoop = group[0]!.routeType === "sameSideLoop";
       const sideSign = group[0]!.source.x < layout.centerX ? 1 : -1;
-      const base = sameSideLoop ? group[0]!.source.x + sideSign * SAME_SIDE_LOOP_INSET : starts[groupIndex]!;
+      const base = sameSideLoop
+        ? group[0]!.source.x + sideSign * SAME_SIDE_LOOP_INSET
+        : starts[groupIndex]!;
 
       group.forEach((seed, index) => {
         const laneIndex = sameSideLoop ? group.length - 1 - index : index;
-        const rawMidX = base + (sameSideLoop ? sideSign * laneIndex * ROUTE_LANE_SPACING : laneIndex * ROUTE_LANE_SPACING);
+        const rawMidX = base + (sameSideLoop ? sideSign : 1) * laneIndex * ROUTE_LANE_SPACING;
         const midX = Math.max(bounds.left, Math.min(bounds.right, rawMidX));
-        const points = buildRoutePoints(seed.source, seed.target, midX, seed.routeType);
+        const points = buildRoutePoints(seed.source, seed.target, midX);
         routed.push({
           ...seed,
           lane: routed.length,
@@ -168,11 +190,20 @@ export function routeNestedFiberGroups(modelConnections: SpliceConnection[], lay
   return { routes: routed, missingIds };
 }
 
+function connectionFromRoute(route: RoutedStrand, anchors: { source: FiberAnchor; target: FiberAnchor }): SpliceConnection {
+  return {
+    id: route.connectionId,
+    source: anchors.source,
+    target: anchors.target,
+    circuitName: route.circuitName,
+  };
+}
+
 export function applyNestedLiveRoutes(routes: RoutedStrand[], layout: LayoutPlan): RoutedStrand[] {
   const connLike: SpliceConnection[] = routes.flatMap((route) => {
     const anchors = layout.anchorsByConnection[route.connectionId];
     if (!anchors) return [];
-    return [{ id: route.connectionId, source: anchors.source, target: anchors.target, circuitName: route.circuitName }];
+    return [connectionFromRoute(route, anchors)];
   });
   const nested = routeNestedFiberGroups(connLike, layout).routes;
   const byId = new Map(nested.map((route) => [route.conn.id, route]));
